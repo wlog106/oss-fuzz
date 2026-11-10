@@ -12,31 +12,34 @@ limitations under the License.
 
 #include "fuzz_header.h"
 
+/* Was defined in the now-deleted fuzz_util.c; restored here so this
+   harness links. Per-run blockdata hook; this build runs with
+   detect_leaks=0, so a no-op is safe and matches the original. */
+void fuzz_blockdata_cleanup(void) {}
+
 /*
  *  Targets "extract_addresses"
  */
 void FuzzExtractTheAddress(const uint8_t **data2, size_t *size2) {
-  const uint8_t *data = *data2;
-  size_t size = *size2;
+    const uint8_t *data = *data2;
+    size_t size = *size2;
 
-  char *new_name = NULL;
-  new_name = get_len_null_terminated(&data, &size, MAXDNAME);
-  pointer_arr[pointer_idx++] = (void*)new_name;
+    char *new_name = NULL;
+    new_name = gb_alloc_data(MAXDNAMESTR+1);
 
-  int is_sign = get_int(&data, &size);
-  int check_rebind = get_int(&data, &size);
-  int secure =  get_int(&data, &size);
+    int is_sign = get_int(&data, &size);
+    int check_rebind = get_int(&data, &size);
+    int secure =  get_int(&data, &size);
 
-  if (size > (sizeof(struct dns_header) +50)) {
-    char *new_data = malloc(size);
-    memset(new_data, 0, size);
-    memcpy(new_data, data, size);
-    pointer_arr[pointer_idx++] = (void*)new_data;
-    
-    time_t now; 
-    int doctored = 0;
-    extract_addresses((struct dns_header *)new_data, size, new_name, now, NULL, NULL, is_sign, check_rebind, 0, secure, &doctored);
-  }
+    if (size > (sizeof(struct dns_header) +50)) {
+        char *new_data = malloc(size + MAXDNAME + RRFIXEDSZ);
+        memset(new_data, 0, size + MAXDNAME + RRFIXEDSZ);
+        memcpy(new_data, data, size);
+        pointer_arr[pointer_idx++] = (void*)new_data;
+
+        time_t now = 0;
+        extract_addresses((struct dns_header *)new_data, size, new_name, now, NULL, NULL, check_rebind, 0, secure);
+    }
 }
 
 
@@ -44,25 +47,25 @@ void FuzzExtractTheAddress(const uint8_t **data2, size_t *size2) {
  * Targets "answer_request"
  */
 void FuzzAnswerTheRequest(const uint8_t **data2, size_t *size2) {
-  const uint8_t *data = *data2;
-  size_t size = *size2;
+    const uint8_t *data = *data2;
+    size_t size = *size2;
 
-  struct in_addr local_addr;
-  struct in_addr local_netmask;
-  time_t now;
+    struct in_addr local_addr; memset(&local_addr, 0, sizeof(local_addr));
+    struct in_addr local_netmask; memset(&local_netmask, 0, sizeof(local_netmask));
+    time_t now = 0;
 
-  int i1 = get_int(&data, &size);
-  int i2 = get_int(&data, &size);
-  int i3 = get_int(&data, &size);
+    int i1 = get_int(&data, &size);
+    int i2 = get_int(&data, &size);
+    int i3 = get_int(&data, &size);
 
-  if (size > (sizeof(struct dns_header) +50)) {
-    char *new_data = malloc(size);
-    memset(new_data, 0, size);
-    memcpy(new_data, data, size);
-    pointer_arr[pointer_idx++] = (void*)new_data;
+    if (size > (sizeof(struct dns_header) +50)) {
+        char *new_data = malloc(size + MAXDNAME + RRFIXEDSZ);
+        memset(new_data, 0, size + MAXDNAME + RRFIXEDSZ);
+        memcpy(new_data, data, size);
+        pointer_arr[pointer_idx++] = (void*)new_data;
 
-    answer_request((struct dns_header *)new_data, new_data+size, size, local_addr, local_netmask, now, i1, i2, i3);
-  }
+        answer_request((struct dns_header *)new_data, new_data+size, size, local_addr, local_netmask, now, i1, i2, i3, NULL, NULL);
+    }
 
 }
 
@@ -70,18 +73,18 @@ void FuzzAnswerTheRequest(const uint8_t **data2, size_t *size2) {
  * Targets "check_for_ignored_address"
  */
 void FuzzIgnoredAddress(const uint8_t **data2, size_t *size2) {
-  const uint8_t *data = *data2;
-  size_t size = *size2;
+    const uint8_t *data = *data2;
+    size_t size = *size2;
 
-  if (size > (sizeof(struct dns_header) +50)) {
-    //return 0;
-    char *new_data = malloc(size);
-    memset(new_data, 0, size);
-    memcpy(new_data, data, size);
-    pointer_arr[pointer_idx++] = (void*)new_data;
+    if (size > (sizeof(struct dns_header) +50)) {
+        //return 0;
+        char *new_data = malloc(size + MAXDNAME + RRFIXEDSZ);
+        memset(new_data, 0, size + MAXDNAME + RRFIXEDSZ);
+        memcpy(new_data, data, size);
+        pointer_arr[pointer_idx++] = (void*)new_data;
 
-    check_for_ignored_address((struct dns_header *)new_data, size);
-  }
+        check_for_ignored_address((struct dns_header *)new_data, size);
+    }
 }
 
 /*
@@ -91,14 +94,16 @@ void FuzzCheckLocalDomain(const uint8_t **data2, size_t *size2) {
   const uint8_t *data = *data2;
   size_t size = *size2;
 
-  
+
+  //char *new_data = malloc(size + MAXDNAME + RRFIXEDSZ);
+  //memset(new_data, 0, size + MAXDNAME + RRFIXEDSZ);
     char *new_data = malloc(size+1);
     memset(new_data, 0, size);
     memcpy(new_data, data, size);
     new_data[size] = '\0';
     pointer_arr[pointer_idx++] = (void*)new_data;
 
-    time_t now;
+    time_t now = 0;
     check_for_local_domain(new_data, now);
 }
 
@@ -106,27 +111,26 @@ void FuzzCheckLocalDomain(const uint8_t **data2, size_t *size2) {
  * Targets "extract_request"
  */
 void FuzzExtractRequest(const uint8_t **data2, size_t *size2) {
-  const uint8_t *data = *data2;
-  size_t size = *size2;
+    const uint8_t *data = *data2;
+    size_t size = *size2;
 
-  char *new_name = NULL;
-  new_name = get_len_null_terminated(&data, &size, MAXDNAME);
+    char *new_name = NULL;
+    new_name = gb_alloc_data(MAXDNAMESTR+1);
 
-  if (new_name == NULL) {
-    return ;
-  }
-  pointer_arr[pointer_idx++] = (void*)new_name;
+    if (new_name == NULL) {
+        return ;
+    }
 
-  if (size > (sizeof(struct dns_header) +50)) {
-    char *new_data = malloc(size+1);
-    memset(new_data, 0, size);
-    memcpy(new_data, data, size);
-    new_data[size] = '\0';
-    pointer_arr[pointer_idx++] = (void*)new_data;
+    if (size > (sizeof(struct dns_header) +50)) {
+        char *new_data = malloc(size + MAXDNAME + RRFIXEDSZ);
+        memset(new_data, 0, size + MAXDNAME + RRFIXEDSZ);
+        memcpy(new_data, data, size);
+        new_data[size] = '\0';
+        pointer_arr[pointer_idx++] = (void*)new_data;
 
-    unsigned short typeb;
-    extract_request((struct dns_header *)new_data, size, new_name, &typeb);
-  }
+        unsigned short typeb, classb;
+        extract_request((struct dns_header *)new_data, size, new_name, &typeb, &classb);
+    }
 }
 
 
@@ -156,59 +160,59 @@ void FuzzResizePacket(const uint8_t **data2, size_t *size2) {
   char *new_packet = malloc(50);
 
   if (size > (sizeof(struct dns_header) + 50)) {
-    char *new_data = malloc(size+1);
-    memset(new_data, 0, size);
+    char *new_data = malloc(size + MAXDNAME + RRFIXEDSZ);
+    memset(new_data, 0, size + MAXDNAME + RRFIXEDSZ);
     memcpy(new_data, data, size);
     new_data[size] = '\0';
     pointer_arr[pointer_idx++] = (void*)new_data;
 
-    resize_packet((struct dns_header *)new_data, size, (unsigned char*)new_packet, 50);    
+    resize_packet((struct dns_header *)new_data, size, (unsigned char*)new_packet, 50);
   }
   free(new_packet);
 }
 
 void FuzzSetupReply(const uint8_t **data2, size_t *size2) {
-  const uint8_t *data = *data2;
-  size_t size = *size2;
-  
-  if (size > (sizeof(struct dns_header) + 50)) {
-    char *new_data = malloc(size+1);
-    memset(new_data, 0, size);
-    memcpy(new_data, data, size);
-    new_data[size] = '\0';
-    pointer_arr[pointer_idx++] = (void*)new_data;
+    const uint8_t *data = *data2;
+    size_t size = *size2;
 
-    setup_reply((struct dns_header *)new_data, 0, 0);
-  }
+    if (size > (sizeof(struct dns_header) + 50)) {
+        char *new_data = malloc(size + MAXDNAME + RRFIXEDSZ);
+        memset(new_data, 0, size + MAXDNAME + RRFIXEDSZ);
+        memcpy(new_data, data, size);
+        new_data[size] = '\0';
+        pointer_arr[pointer_idx++] = (void*)new_data;
+
+        setup_reply((struct dns_header *)new_data, 0, 0);
+    }
 }
 
 
 void FuzzCheckForBogusWildcard(const uint8_t **data2, size_t *size2) {
-  const uint8_t *data = *data2;
-  size_t size = *size2;
-  
-  char *nname = gb_get_len_null_terminated(&data, &size, MAXDNAME);
-  if (nname == NULL) {
-    return;
-  }
+    const uint8_t *data = *data2;
+    size_t size = *size2;
+
+    char *nname = gb_alloc_data(MAXDNAMESTR+1);
+    if (nname == NULL) {
+        return;
+    }
 
 
-  if (size > (sizeof(struct dns_header) + 50)) {
-    char *new_data = malloc(size+1);
-    memset(new_data, 0, size);
-    memcpy(new_data, data, size);
-    new_data[size] = '\0';
-    pointer_arr[pointer_idx++] = (void*)new_data;
+    if (size > (sizeof(struct dns_header) + 50)) {
+        char *new_data = malloc(size + MAXDNAME + RRFIXEDSZ);
+        memset(new_data, 0, size + MAXDNAME + RRFIXEDSZ);
+        memcpy(new_data, data, size);
+        new_data[size] = '\0';
+        pointer_arr[pointer_idx++] = (void*)new_data;
 
-    time_t now;
-    check_for_bogus_wildcard((struct dns_header *)new_data, size, nname, now);
-  }
+        time_t now = 0;
+        check_for_bogus_wildcard((struct dns_header *)new_data, size, nname, now);
+    }
 }
 
 
 /*
  * Fuzzer entrypoint.
- */ 
+ */
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   daemon = NULL;
@@ -228,8 +232,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   int succ = init_daemon(&data, &size);
 
   if (succ == 0) {
-    cache_init();
-    blockdata_init();
+    static int once = 0;
+    if (!once) { cache_init(); blockdata_init(); once = 1; }
 
     //i = 7;
 #define TS 9
@@ -259,7 +263,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
     }
     else {
       FuzzIgnoredAddress(&data, &size);
-    } 
+    }
     cache_start_insert();
     fuzz_blockdata_cleanup();
   }

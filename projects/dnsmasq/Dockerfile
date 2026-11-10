@@ -16,7 +16,7 @@
 
 FROM gcr.io/oss-fuzz-base/base-builder
 RUN apt-get update && apt-get install -y make autoconf automake libtool
-RUN git clone --depth 1 git://thekelleys.org.uk/dnsmasq.git dnsmasq    
+RUN git clone --depth 1 git://thekelleys.org.uk/dnsmasq.git dnsmasq
 WORKDIR dnsmasq
 COPY build.sh $SRC/
 COPY fuzz*.c $SRC/
@@ -24,3 +24,9 @@ COPY fuzz*.cc $SRC/
 COPY fuzz*.h $SRC/
 
 COPY fuzz_patch.patch $SRC/
+
+# flat zip of DHCPv6 seeds (files at root, no folder). OSS-Fuzz associates a
+# <target>_seed_corpus.zip with the target; build.sh copies it to $OUT so every
+# run_fuzzer auto-loads it AFTER the corpus wipe. Must exist in the build
+# context (projects/dnsmasq/) or this COPY fails the build.
+COPY fuzz_dhcp6_seed_corpus.zip $SRC/
